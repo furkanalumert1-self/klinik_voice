@@ -1,0 +1,141 @@
+{
+  "name": "klinik-reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "klinik-reminder",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.type }}",
+              "operation": "contains",
+              "value2": "reminder"
+            }
+          ]
+        }
+      },
+      "id": "is-reminder",
+      "name": "Is Reminder?",
+      "type": "n8n-nodes-base.if",
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "metaGraphApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Webhook').item.json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "template"
+            },
+            {
+              "name": "template",
+              "value": "={{ JSON.stringify({ name: 'klinik_randevu_hatirlatma', language: { code: 'tr' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $('Webhook').item.json.patientName }, { type: 'text', text: new Date($('Webhook').item.json.appointmentAt).toLocaleString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) }, { type: 'text', text: $('Webhook').item.json.doctorName }, { type: 'text', text: $('Webhook').item.json.service }, { type: 'text', text: $('Webhook').item.json.clinicAddress }] }] }) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "send-whatsapp-reminder",
+      "name": "WhatsApp Hatırlatma",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [680, 240]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "metaGraphApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $('Webhook').item.json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={{ JSON.stringify({ body: 'Merhaba ' + $(\\'Webhook\\').item.json.patientName + ', randevunuz onaylandı! ' + new Date($(\\'Webhook\\').item.json.appointmentAt).toLocaleString(\\'tr-TR\\') + ' tarihinde sizi bekliyoruz. İptal için IPTAL yazın.' }) }}"
+            }
+          ]
+        }
+      },
+      "id": "send-whatsapp-confirmation",
+      "name": "WhatsApp Onay",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [680, 360]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }"
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Is Reminder?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is Reminder?": {
+      "main": [
+        [{ "node": "WhatsApp Hatırlatma", "type": "main", "index": 0 }],
+        [{ "node": "WhatsApp Onay", "type": "main", "index": 0 }]
+      ]
+    },
+    "WhatsApp Hatırlatma": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }]
+      ]
+    },
+    "WhatsApp Onay": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "tags": ["klinik"]
+}

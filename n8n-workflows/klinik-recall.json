@@ -1,0 +1,112 @@
+{
+  "name": "klinik-recall",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 10 1 * *" }]
+        }
+      },
+      "id": "monthly-trigger",
+      "name": "Her Ayın 1'i 10:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT ON (a.phone) a.id, a.patient_name, a.phone, a.appointment_at, a.complaint, d.full_name as doctor_name, s.name as service_name FROM appointments a LEFT JOIN doctors d ON a.doctor_id = d.id LEFT JOIN services s ON a.service_id = s.id WHERE a.status = 'tamamlandi' AND a.appointment_at BETWEEN NOW() - INTERVAL '18 months' AND NOW() - INTERVAL '6 months' AND a.phone NOT IN (SELECT phone FROM recall_exclusions) ORDER BY a.phone, a.appointment_at DESC LIMIT 100"
+      },
+      "id": "recall-query",
+      "name": "Recall Adayları",
+      "type": "n8n-nodes-base.postgres",
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split",
+      "name": "Her Hasta",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-haiku-4-5"
+            },
+            {
+              "name": "max_tokens",
+              "value": "150"
+            },
+            {
+              "name": "system",
+              "value": "Klinik hatırlatma mesajı yaz. Kısa, sıcak, Türkçe. Maksimum 2 cümle. Sadece mesaj metni, başka hiçbir şey yazma."
+            },
+            {
+              "name": "messages",
+              "value": "={{ JSON.stringify([{ role: 'user', content: 'Hasta: ' + $json.patient_name + ', Son ziyaret: ' + new Date($json.appointment_at).toLocaleDateString('tr-TR') + ', Doktor: ' + $json.doctor_name + ', Hizmet: ' + $json.service_name + '. Bu hastaya 6 aydan uzun süredir gelmediği için hatırlatma mesajı yaz.' }]) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-message",
+      "name": "AI Mesaj Oluştur",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "metaGraphApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "messaging_product", "value": "whatsapp" },
+            { "name": "to", "value": "={{ $('Her Hasta').item.json.phone }}" },
+            { "name": "type", "value": "text" },
+            { "name": "text", "value": "={{ JSON.stringify({ body: $json.content[0].text }) }}" }
+          ]
+        }
+      },
+      "id": "send-recall",
+      "name": "Recall Mesajı Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Her Ayın 1'i 10:00": {
+      "main": [[{ "node": "Recall Adayları", "type": "main", "index": 0 }]]
+    },
+    "Recall Adayları": {
+      "main": [[{ "node": "Her Hasta", "type": "main", "index": 0 }]]
+    },
+    "Her Hasta": {
+      "main": [[{ "node": "AI Mesaj Oluştur", "type": "main", "index": 0 }]]
+    },
+    "AI Mesaj Oluştur": {
+      "main": [[{ "node": "Recall Mesajı Gönder", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "tags": ["klinik"]
+}

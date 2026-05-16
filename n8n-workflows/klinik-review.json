@@ -1,0 +1,83 @@
+{
+  "name": "klinik-review",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 11 * * *" }]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Her Gün 11:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id, a.patient_name, a.phone, a.appointment_at, a.review_requested_at, d.full_name as doctor_name FROM appointments a LEFT JOIN doctors d ON a.doctor_id = d.id WHERE a.status = 'tamamlandi' AND a.appointment_at <= NOW() - INTERVAL '2 days' AND a.review_requested_at IS NULL LIMIT 50"
+      },
+      "id": "postgres-query",
+      "name": "Tamamlanan Randevular",
+      "type": "n8n-nodes-base.postgres",
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-batches",
+      "name": "Her Kayıt İçin",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "metaGraphApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "messaging_product", "value": "whatsapp" },
+            { "name": "to", "value": "={{ $json.phone }}" },
+            { "name": "type", "value": "text" },
+            { "name": "text", "value": "={{ JSON.stringify({ body: $json.patient_name + ', ' + $json.doctor_name + ' ile randevunuzdan 2 gün geçti. Memnuniyetinizi Google\\'da paylaşır mısınız? ⭐ ' + $env.CLINIC_GOOGLE_REVIEW_LINK }) }}" }
+          ]
+        }
+      },
+      "id": "send-review-request",
+      "name": "Review İsteği Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE appointments SET review_requested_at = NOW() WHERE id = '{{ $('Her Kayıt İçin').item.json.id }}'"
+      },
+      "id": "update-review-sent",
+      "name": "review_requested_at Güncelle",
+      "type": "n8n-nodes-base.postgres",
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Her Gün 11:00": {
+      "main": [[{ "node": "Tamamlanan Randevular", "type": "main", "index": 0 }]]
+    },
+    "Tamamlanan Randevular": {
+      "main": [[{ "node": "Her Kayıt İçin", "type": "main", "index": 0 }]]
+    },
+    "Her Kayıt İçin": {
+      "main": [[{ "node": "Review İsteği Gönder", "type": "main", "index": 0 }]]
+    },
+    "Review İsteği Gönder": {
+      "main": [[{ "node": "review_requested_at Güncelle", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "tags": ["klinik"]
+}
