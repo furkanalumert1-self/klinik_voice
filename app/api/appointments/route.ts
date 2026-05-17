@@ -59,12 +59,22 @@ export async function POST(req: NextRequest) {
     status: "talep",
   }).returning();
 
-  // n8n confirmation webhook
+  // n8n onay maili webhook
   if (process.env.N8N_WEBHOOK_REMINDER) {
-    await fetch(process.env.N8N_WEBHOOK_REMINDER, {
+    fetch(process.env.N8N_WEBHOOK_REMINDER, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "confirmation", appointmentId: appointment.id, phone: data.phone, patientName: data.patientName, appointmentAt: start }),
+      body: JSON.stringify({
+        type: "confirmation",
+        appointmentId: appointment.id,
+        email: data.email,
+        phone: data.phone,
+        patientName: data.patientName,
+        appointmentAt: start,
+        clinicName: process.env.NEXT_PUBLIC_CLINIC_NAME,
+        clinicPhone: process.env.NEXT_PUBLIC_CLINIC_PHONE,
+        clinicAddress: process.env.NEXT_PUBLIC_CLINIC_ADDRESS,
+      }),
     }).catch(() => null);
   }
 

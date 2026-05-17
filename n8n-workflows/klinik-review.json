@@ -15,7 +15,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.patient_name, a.phone, a.appointment_at, a.review_requested_at, d.full_name as doctor_name FROM appointments a LEFT JOIN doctors d ON a.doctor_id = d.id WHERE a.status = 'tamamlandi' AND a.appointment_at <= NOW() - INTERVAL '2 days' AND a.review_requested_at IS NULL LIMIT 50"
+        "query": "SELECT a.id, a.patient_name, a.phone, a.email, a.appointment_at, d.full_name as doctor_name FROM appointments a LEFT JOIN doctors d ON a.doctor_id = d.id WHERE a.status = 'tamamlandi' AND a.appointment_at <= NOW() - INTERVAL '2 days' AND a.review_requested_at IS NULL AND a.email IS NOT NULL LIMIT 50"
       },
       "id": "postgres-query",
       "name": "Tamamlanan Randevular",
@@ -34,22 +34,15 @@
     },
     {
       "parameters": {
-        "url": "https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "metaGraphApi",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            { "name": "messaging_product", "value": "whatsapp" },
-            { "name": "to", "value": "={{ $json.phone }}" },
-            { "name": "type", "value": "text" },
-            { "name": "text", "value": "={{ JSON.stringify({ body: $json.patient_name + ', ' + $json.doctor_name + ' ile randevunuzdan 2 gün geçti. Memnuniyetinizi Google\\'da paylaşır mısınız? ⭐ ' + $env.CLINIC_GOOGLE_REVIEW_LINK }) }}" }
-          ]
-        }
+        "sendTo": "={{ $json.email }}",
+        "subject": "Alumert Klinik — Değerlendirmenizi Bekliyoruz ⭐",
+        "emailFormat": "html",
+        "html": "<p>Sayın <strong>{{ $json.patient_name }}</strong>,</p><p>{{ $json.doctor_name }} ile randevunuzdan 2 gün geçti. Umarız iyisinizdir.</p><p>Hizmetimizi değerlendirirseniz çok seviniriz:</p><p><a href='{{ $env.CLINIC_GOOGLE_REVIEW_LINK }}'>⭐ Google'da Değerlendir</a></p><p>İyi günler,<br>Alumert Klinik</p>",
+        "options": {}
       },
-      "id": "send-review-request",
-      "name": "Review İsteği Gönder",
-      "type": "n8n-nodes-base.httpRequest",
+      "id": "send-review-mail",
+      "name": "Review Maili Gönder",
+      "type": "n8n-nodes-base.gmail",
       "position": [900, 300]
     },
     {
@@ -71,9 +64,9 @@
       "main": [[{ "node": "Her Kayıt İçin", "type": "main", "index": 0 }]]
     },
     "Her Kayıt İçin": {
-      "main": [[{ "node": "Review İsteği Gönder", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Review Maili Gönder", "type": "main", "index": 0 }]]
     },
-    "Review İsteği Gönder": {
+    "Review Maili Gönder": {
       "main": [[{ "node": "review_requested_at Güncelle", "type": "main", "index": 0 }]]
     }
   },

@@ -16,11 +16,12 @@
     {
       "parameters": {
         "conditions": {
-          "string": [
+          "options": { "caseSensitive": false },
+          "conditions": [
             {
-              "value1": "={{ $json.type }}",
-              "operation": "contains",
-              "value2": "reminder"
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "reminder",
+              "operator": { "type": "string", "operation": "contains" }
             }
           ]
         }
@@ -32,74 +33,29 @@
     },
     {
       "parameters": {
-        "url": "https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "metaGraphApi",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "messaging_product",
-              "value": "whatsapp"
-            },
-            {
-              "name": "to",
-              "value": "={{ $('Webhook').item.json.phone }}"
-            },
-            {
-              "name": "type",
-              "value": "template"
-            },
-            {
-              "name": "template",
-              "value": "={{ JSON.stringify({ name: 'klinik_randevu_hatirlatma', language: { code: 'tr' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $('Webhook').item.json.patientName }, { type: 'text', text: new Date($('Webhook').item.json.appointmentAt).toLocaleString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) }, { type: 'text', text: $('Webhook').item.json.doctorName }, { type: 'text', text: $('Webhook').item.json.service }, { type: 'text', text: $('Webhook').item.json.clinicAddress }] }] }) }}"
-            }
-          ]
-        },
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          }
-        }
+        "sendTo": "={{ $('Webhook').item.json.email }}",
+        "subject": "Randevu Hatırlatması — {{ $('Webhook').item.json.clinicName }}",
+        "emailFormat": "html",
+        "html": "<p>Sayın <strong>{{ $('Webhook').item.json.patientName }}</strong>,</p><p>Randevunuzu hatırlatmak istedik:</p><ul><li><strong>Tarih/Saat:</strong> {{ $('Webhook').item.json.appointmentAt }}</li><li><strong>Doktor:</strong> {{ $('Webhook').item.json.doctorName }}</li><li><strong>Hizmet:</strong> {{ $('Webhook').item.json.service }}</li><li><strong>Adres:</strong> {{ $('Webhook').item.json.clinicAddress }}</li></ul><p>Gelemeyecekseniz lütfen bizi arayın: {{ $('Webhook').item.json.clinicPhone }}</p><p>İyi günler dileriz,<br>{{ $('Webhook').item.json.clinicName }}</p>",
+        "options": {}
       },
-      "id": "send-whatsapp-reminder",
-      "name": "WhatsApp Hatırlatma",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [680, 240]
+      "id": "send-reminder-mail",
+      "name": "Hatırlatma Maili",
+      "type": "n8n-nodes-base.gmail",
+      "position": [680, 220]
     },
     {
       "parameters": {
-        "url": "https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "metaGraphApi",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "messaging_product",
-              "value": "whatsapp"
-            },
-            {
-              "name": "to",
-              "value": "={{ $('Webhook').item.json.phone }}"
-            },
-            {
-              "name": "type",
-              "value": "text"
-            },
-            {
-              "name": "text",
-              "value": "={{ JSON.stringify({ body: 'Merhaba ' + $(\\'Webhook\\').item.json.patientName + ', randevunuz onaylandı! ' + new Date($(\\'Webhook\\').item.json.appointmentAt).toLocaleString(\\'tr-TR\\') + ' tarihinde sizi bekliyoruz. İptal için IPTAL yazın.' }) }}"
-            }
-          ]
-        }
+        "sendTo": "={{ $('Webhook').item.json.email }}",
+        "subject": "Randevunuz Onaylandı — {{ $('Webhook').item.json.clinicName }}",
+        "emailFormat": "html",
+        "html": "<p>Sayın <strong>{{ $('Webhook').item.json.patientName }}</strong>,</p><p>Randevunuz başarıyla oluşturuldu.</p><ul><li><strong>Tarih/Saat:</strong> {{ $('Webhook').item.json.appointmentAt }}</li><li><strong>Adres:</strong> {{ $('Webhook').item.json.clinicAddress }}</li></ul><p>İptal veya değişiklik için: {{ $('Webhook').item.json.clinicPhone }}</p><p>İyi günler dileriz,<br>{{ $('Webhook').item.json.clinicName }}</p>",
+        "options": {}
       },
-      "id": "send-whatsapp-confirmation",
-      "name": "WhatsApp Onay",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [680, 360]
+      "id": "send-confirmation-mail",
+      "name": "Onay Maili",
+      "type": "n8n-nodes-base.gmail",
+      "position": [680, 380]
     },
     {
       "parameters": {
@@ -114,25 +70,19 @@
   ],
   "connections": {
     "Webhook": {
-      "main": [
-        [{ "node": "Is Reminder?", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Is Reminder?", "type": "main", "index": 0 }]]
     },
     "Is Reminder?": {
       "main": [
-        [{ "node": "WhatsApp Hatırlatma", "type": "main", "index": 0 }],
-        [{ "node": "WhatsApp Onay", "type": "main", "index": 0 }]
+        [{ "node": "Hatırlatma Maili", "type": "main", "index": 0 }],
+        [{ "node": "Onay Maili", "type": "main", "index": 0 }]
       ]
     },
-    "WhatsApp Hatırlatma": {
-      "main": [
-        [{ "node": "Respond", "type": "main", "index": 0 }]
-      ]
+    "Hatırlatma Maili": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
     },
-    "WhatsApp Onay": {
-      "main": [
-        [{ "node": "Respond", "type": "main", "index": 0 }]
-      ]
+    "Onay Maili": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
     }
   },
   "active": true,

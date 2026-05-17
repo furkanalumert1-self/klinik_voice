@@ -54,11 +54,14 @@ export async function GET(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: type === "2h" ? "reminder_2h" : "reminder_24h",
+        email: appt.email,
         phone: appt.phone,
         patientName: appt.patientName,
         appointmentAt: appt.appointmentAt,
         doctorName: doc?.fullName ?? "Doktorunuz",
         service: svc?.name ?? "Randevunuz",
+        clinicName: process.env.NEXT_PUBLIC_CLINIC_NAME,
+        clinicPhone: process.env.NEXT_PUBLIC_CLINIC_PHONE,
         clinicAddress: process.env.NEXT_PUBLIC_CLINIC_ADDRESS,
       }),
     }).catch(() => null);
